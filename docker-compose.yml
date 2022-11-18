@@ -1,0 +1,123 @@
+version: "3.7"
+
+volumes:
+  transmission_config:
+  transmission_incomplete:
+  sabnzbd_datadir:
+  jackett_config:
+  sonarr_config:
+  radarr_config:
+
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "8000:8000"   # Remote Control VPN
+      - "8888:8888"   # Tinyproxy
+      - "9117:9117"   # Jackett
+      - "9091:9091"   # Transmission
+      - "8080:8080"   # SABnzbd
+      - "8989:8989"   # Sonarr
+      - "7878:7878"   # Radarr
+    environment:
+      - PUID=${DOCKER_UID:-1000}
+      - PGID=${DOCKER_GID:-1000}
+      - TZ=${TZ:?}
+      - HTTPPROXY=on
+      - FIREWALL_OUTBOUND_SUBNETS=${VPN_OUTBOUND_SUBNETS:?}
+      - FIREWALL_VPN_INPUT_PORTS=${TRANSMISSION_LISTEN_PORT:?}
+      - VPN_SERVICE_PROVIDER=mullvad
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:?}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES:?}
+      - SERVER_COUNTRIES=${VPN_COUNTRIES}
+      - SERVER_CITIES=${VPN_CITIES}
+      - OWNED_ONLY=${MULLVAD_OWNED_ONLY:-no}
+    dns:
+      - ${DNS_ADDRESS:?}
+    devices:
+      - ${HOST_TUN_DEVICE:-/dev/net/tun}:/dev/net/tun
+    restart: always
+
+  transmission:
+    image: linuxserver/transmission:latest
+    container_name: transmission
+    environment:
+      - PUID=${DOCKER_UID:-1000}
+      - PGID=${DOCKER_GID:-1000}
+      - TZ=${TZ:?}
+      - PEERPORT=${TRANSMISSION_LISTEN_PORT:?}
+    volumes:
+      - transmission_config:/config
+      - ${TRANSMISSION_DOWNLOAD_DIR:?}:/downloads
+    network_mode: service:gluetun
+    depends_on:
+      - gluetun
+    restart: always
+
+  sabnzbd:
+    image: sabnzbd/sabnzbd:latest
+    container_name: sabnzbd
+    environment:
+      - SABNZBD_UID=${DOCKER_UID:-1000}
+      - SABNZBD_GID=${DOCKER_UID:-1000}
+    volumes:
+        - sabnzbd_datadir:/datadir
+        - ${SABNZBD_DOWNLOAD_DIR:?}:/media
+    network_mode: service:gluetun
+    depends_on:
+      - gluetun
+    restart: always
+
+  jackett:
+    image: linuxserver/jackett:latest
+    container_name: jackett
+    environment:
+      - PUID=${DOCKER_UID:-1000}
+      - PGID=${DOCKER_GID:-1000}
+      - TZ=${TZ:?}
+      - AUTO_UPDATE=true
+    volumes:
+      - jackett_config:/config
+    network_mode: service:gluetun
+    depends_on:
+      - gluetun
+    restart: always
+
+  sonarr:
+    image: linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=${DOCKER_UID:-1000}
+      - PGID=${DOCKER_GID:-1000}
+      - TZ=${TZ:?}
+      - UMASK_SET=022
+    volumes:
+      - sonarr_config:/config
+      - ${SONARR_STORAGE_DIR:?}:/storage
+    network_mode: service:gluetun
+    depends_on:
+      - jackett
+      - transmission
+    restart: always
+
+  radarr:
+    image: linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=${DOCKER_UID:-1000}
+      - PGID=${DOCKER_GID:-1000}
+      - TZ=${TZ:?}
+      - UMASK_SET=022
+    volumes:
+      - radarr_config:/config
+      - ${RADARR_MEDIA_DIR:?}:/storage
+    network_mode: service:gluetun
+    depends_on:
+      - jackett
+      - transmission
+    restart: always
+
