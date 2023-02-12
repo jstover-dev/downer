@@ -143,8 +143,6 @@ services:
     image: homelab_borg
     container_name: borg
     volumes:
-      - ./images/borg/entrypoint.sh:/entrypoint.sh
-      - ./images/borg/backup.sh:/usr/bin/backup
       -  transmission_config:/volumes/transmission_config:ro
       -  sabnzbd_config:/volumes/sabnzbd_config:ro
       -  jackett_config:/volumes/jackett_config:ro
