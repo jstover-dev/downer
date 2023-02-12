@@ -1,0 +1,2 @@
+0 */6 * * *   /usr/bin/backup create
+0 1 * * 0     /usr/bin/backup prune

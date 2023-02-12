@@ -3,10 +3,11 @@ version: "3.7"
 volumes:
   transmission_config:
   transmission_incomplete:
-  sabnzbd_datadir:
+  sabnzbd_config:
   jackett_config:
   sonarr_config:
   radarr_config:
+  calibre_config:
 
 services:
   gluetun:
@@ -52,21 +53,22 @@ services:
       - PEERPORT=${TRANSMISSION_LISTEN_PORT:?}
     volumes:
       - transmission_config:/config
-      - ${TRANSMISSION_DOWNLOAD_DIR:?}:/downloads
+      - ${TRANSMISSION_DOWNLOAD_DIR:?}:/downloads/transmission
     network_mode: service:gluetun
     depends_on:
       - gluetun
     restart: always
 
   sabnzbd:
-    image: sabnzbd/sabnzbd:latest
+    image: linuxserver/sabnzbd:latest
     container_name: sabnzbd
     environment:
-      - SABNZBD_UID=${DOCKER_UID:-1000}
-      - SABNZBD_GID=${DOCKER_UID:-1000}
+      - PUID=${DOCKER_UID:-1000}
+      - PGID=${DOCKER_GID:-1000}
+      - TZ=${TZ:?}
     volumes:
-        - sabnzbd_datadir:/datadir
-        - ${SABNZBD_DOWNLOAD_DIR:?}:/media
+        - sabnzbd_config:/config
+        - ${SABNZBD_DOWNLOAD_DIR:?}:/downloads/sabnzbd
     network_mode: service:gluetun
     depends_on:
       - gluetun
@@ -97,7 +99,7 @@ services:
       - UMASK_SET=022
     volumes:
       - sonarr_config:/config
-      - ${SONARR_STORAGE_DIR:?}:/storage
+      - ${SONARR_STORAGE_DIR:?}:/data
     network_mode: service:gluetun
     depends_on:
       - jackett
@@ -114,10 +116,45 @@ services:
       - UMASK_SET=022
     volumes:
       - radarr_config:/config
-      - ${RADARR_MEDIA_DIR:?}:/storage
+      - ${RADARR_MEDIA_DIR:?}:/data
     network_mode: service:gluetun
     depends_on:
       - jackett
       - transmission
     restart: always
 
+  calibre:
+    image: linuxserver/calibre-web:latest
+    container_name: calibre
+    environment:
+      - PUID=${DOCKER_UID:-1000}
+      - PGID=${DOCKER_GID:-1000}
+      - TZ=${TZ:?}
+      - DOCKER_MODS=linuxserver/mods:universal-calibre
+    volumes:
+      - calibre_config:/config
+      - ${CALIBRE_LIBRARY_DIR:?}:/library
+    ports:
+      - "8083:8083"
+    restart: unless-stopped
+
+  borg:
+    build: images/borg
+    image: homelab_borg
+    container_name: borg
+    volumes:
+      - ./images/borg/entrypoint.sh:/entrypoint.sh
+      - ./images/borg/backup.sh:/usr/bin/backup
+      -  transmission_config:/volumes/transmission_config:ro
+      -  sabnzbd_config:/volumes/sabnzbd_config:ro
+      -  jackett_config:/volumes/jackett_config:ro
+      -  sonarr_config:/volumes/sonarr_config:ro
+      -  radarr_config:/volumes/radarr_config:ro
+      -  calibre_config:/volumes/calibre_config:ro
+
+    environment:
+      - BORG_REPO=${BORG_REPO:?}
+      - BORG_PASSPHRASE=${BORG_PASSPHRASE:?}
+      - BORG_SSH_PRIVATE_KEY=${BORG_SSH_PRIVATE_KEY:?}
+
+    network_mode: host
