@@ -8,6 +8,7 @@ volumes:
   sonarr_config:
   radarr_config:
   calibre_config:
+  nzbhydra_config:
 
 services:
   gluetun:
@@ -19,6 +20,7 @@ services:
       - "8000:8000"   # Remote Control VPN
       - "8888:8888"   # Tinyproxy
       - "9117:9117"   # Jackett
+      - "5076:5076"   # NZBHydra2
       - "9091:9091"   # Transmission
       - "8080:8080"   # SABnzbd
       - "8989:8989"   # Sonarr
@@ -44,7 +46,7 @@ services:
     restart: always
 
   transmission:
-    image: linuxserver/transmission:latest
+    image: lscr.io/linuxserver/transmission:latest
     container_name: transmission
     environment:
       - PUID=${DOCKER_UID:-1000}
@@ -60,7 +62,7 @@ services:
     restart: always
 
   sabnzbd:
-    image: linuxserver/sabnzbd:latest
+    image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
     environment:
       - PUID=${DOCKER_UID:-1000}
@@ -75,7 +77,7 @@ services:
     restart: always
 
   jackett:
-    image: linuxserver/jackett:latest
+    image: lscr.io/linuxserver/jackett:latest
     container_name: jackett
     environment:
       - PUID=${DOCKER_UID:-1000}
@@ -90,7 +92,7 @@ services:
     restart: always
 
   sonarr:
-    image: linuxserver/sonarr:latest
+    image: lscr.io/linuxserver/sonarr:latest
     container_name: sonarr
     environment:
       - PUID=${DOCKER_UID:-1000}
@@ -107,7 +109,7 @@ services:
     restart: always
 
   radarr:
-    image: linuxserver/radarr:latest
+    image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
     environment:
       - PUID=${DOCKER_UID:-1000}
@@ -124,7 +126,7 @@ services:
     restart: always
 
   calibre:
-    image: linuxserver/calibre-web:latest
+    image: lscr.io/linuxserver/calibre-web:latest
     container_name: calibre
     environment:
       - PUID=${DOCKER_UID:-1000}
@@ -136,6 +138,22 @@ services:
       - ${CALIBRE_LIBRARY_DIR:?}:/library
     ports:
       - "8083:8083"
+    restart: unless-stopped
+
+  nzbhydra:
+    image: lscr.io/linuxserver/nzbhydra2:latest
+    container_name: nzbhydra
+    environment:
+      - PUID=${DOCKER_UID:-1000}
+      - PGID=${DOCKER_GID:-1000}
+      - TZ=${TZ:?}
+    volumes:
+      - nzbhydra_config:/config
+      - ${SABNZBD_DOWNLOAD_DIR:?}:/downloads
+    network_mode: service:gluetun
+    depends_on:
+      - sabnzbd
+      - sonarr
     restart: unless-stopped
 
   borg:
